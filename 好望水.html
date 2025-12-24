@@ -8,6 +8,9 @@
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- 修复：更换为 cdnjs 源，通常在国内访问更稳定 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
+    
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;500;700&family=Ma+Shan+Zheng&display=swap" rel="stylesheet">
     <style>
         /* * Custom Watercolor & Texture Styles 
@@ -16,6 +19,8 @@
             background-color: #fcfaf7; /* Off-white cream paper */
             font-family: 'Noto Serif SC', serif;
             overflow-x: hidden;
+            /* Prevent bounce on mobile */
+            overscroll-behavior: none;
         }
 
         /* Simulating Watercolor Paper Grain */
@@ -88,6 +93,11 @@
         /* QR Modal Animation */
         .modal-enter { opacity: 0; transform: scale(0.95); }
         .modal-enter-active { opacity: 1; transform: scale(1); transition: all 0.3s ease-out; }
+
+        /* Custom Scrollbar for desktop aesthetic */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #d6ccc2; border-radius: 3px; }
     </style>
 </head>
 <body>
@@ -151,6 +161,42 @@
             const [selectedBlessing, setSelectedBlessing] = React.useState('');
             const [showResult, setShowResult] = React.useState(false);
             const [showQR, setShowQR] = React.useState(false);
+            const [qrImage, setQrImage] = React.useState('');
+            const [isLocalFile, setIsLocalFile] = React.useState(false);
+
+            React.useEffect(() => {
+                // Check if running on file protocol
+                if (window.location.protocol === 'file:') {
+                    setIsLocalFile(true);
+                }
+            }, []);
+
+            // Generate QR Code when modal opens
+            React.useEffect(() => {
+                if (showQR) {
+                    // Check if window.QRCode exists (library loaded)
+                    if (!window.QRCode) {
+                        console.error("QRCode library failed to load");
+                        return;
+                    }
+
+                    const url = window.location.href;
+                    try {
+                        // Explicitly use window.QRCode
+                        window.QRCode.toDataURL(url, { 
+                            margin: 2, 
+                            color: { dark: '#5a4638', light: '#fcfaf7' },
+                            width: 300,
+                            errorCorrectionLevel: 'M'
+                        }, (err, url) => {
+                            if (err) console.error(err);
+                            else setQrImage(url);
+                        });
+                    } catch (e) {
+                        console.error("QR Generation failed", e);
+                    }
+                }
+            }, [showQR]);
 
             const handleDraw = () => {
                 if (!nickname.trim()) return;
@@ -170,185 +216,209 @@
                 setStep('input');
                 setShowResult(false);
             };
+            
+            const handleQRClick = () => {
+                // Now we just show the QR modal regardless, but show a warning if local
+                setShowQR(true);
+            };
 
             return (
-                <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-4 overflow-hidden">
+                <div className="relative min-h-screen w-full flex flex-col items-center justify-center p-0 md:p-8 overflow-hidden bg-[#fcfaf7]">
                     
                     {/* --- Background Elements --- */}
                     
-                    {/* Large Background Character "Wang" */}
-                    <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none z-0">
+                    {/* Large Background Character "Wang" - Fixed to viewport */}
+                    <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none select-none z-0">
                         <span className="font-calligraphy text-[25rem] text-[#8b4513] opacity-[0.04] leading-none">
                             望
                         </span>
                     </div>
 
-                    {/* Watercolor blobs background */}
-                    <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#e6cfcf] rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse z-0"></div>
-                    <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-[#dce6cf] rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse z-0" style={{animationDelay: '2s'}}></div>
+                    {/* Watercolor blobs background - Fixed to viewport */}
+                    <div className="fixed top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#e6cfcf] rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse z-0 pointer-events-none"></div>
+                    <div className="fixed bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-[#dce6cf] rounded-full mix-blend-multiply filter blur-3xl opacity-40 animate-pulse z-0 pointer-events-none" style={{animationDelay: '2s'}}></div>
 
-                    {/* --- Top Right Controls --- */}
-                    <div className="absolute top-4 right-4 z-30">
-                        <button 
-                            onClick={() => setShowQR(true)}
-                            className="bg-white/50 backdrop-blur-sm p-2 rounded-full hover:bg-white/80 transition-all text-[#8b4513] border border-[#d6ccc2] shadow-sm"
-                            title="生成二维码"
-                        >
-                            <QRIcon className="w-6 h-6" />
-                        </button>
+                    {/* --- Main App Container (Phone Frame on Desktop) --- */}
+                    <div className="relative z-10 w-full max-w-md h-full md:h-[85vh] md:max-h-[900px] md:min-h-[600px] 
+                                    transition-all duration-1000 flex flex-col 
+                                    md:border-[12px] md:border-[#f0ece6] md:rounded-[3rem] md:shadow-2xl md:bg-[#fcfaf7]/80 md:backdrop-blur-sm md:overflow-hidden">
+                        
+                        {/* --- Top Right Controls --- */}
+                        <div className="absolute top-6 right-6 z-30">
+                            <button 
+                                onClick={handleQRClick}
+                                className="bg-white/50 backdrop-blur-sm p-2 rounded-full hover:bg-white/80 transition-all text-[#8b4513] border border-[#d6ccc2] shadow-sm"
+                                title="生成二维码"
+                            >
+                                <QRIcon className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        {/* Scrollable Content Area */}
+                        <div className="flex-1 w-full overflow-y-auto overflow-x-hidden p-6 flex flex-col items-center justify-center relative">
+
+                            {/* INPUT STAGE */}
+                            {step === 'input' && (
+                                <div className="w-full flex flex-col items-center text-center space-y-8 animate-[fadeIn_1s_ease-out] py-8">
+                                    <div className="mb-4 transform hover:scale-105 transition-transform duration-700">
+                                        <BottleIcon className="w-24 h-48 drop-shadow-md" />
+                                    </div>
+                                    
+                                    <div>
+                                        <h1 className="text-3xl font-bold text-[#5a4638] tracking-widest font-calligraphy mb-2">
+                                            新年 · 送望
+                                        </h1>
+                                        <p className="text-[#888] text-sm italic serif">
+                                            "给予希望，美好发生"
+                                        </p>
+                                    </div>
+
+                                    <div className="w-full px-8 pt-4">
+                                        <input 
+                                            type="text" 
+                                            value={nickname}
+                                            onChange={(e) => setNickname(e.target.value)}
+                                            placeholder="请输入您的昵称"
+                                            className="hand-input w-full text-center text-xl text-[#5a4638] py-2 bg-transparent placeholder-[#b0aba5]"
+                                        />
+                                    </div>
+
+                                    <button 
+                                        onClick={handleDraw}
+                                        disabled={!nickname.trim()}
+                                        className={`mt-8 px-8 py-3 rounded-full text-[#fcfaf7] tracking-widest transition-all duration-500 shadow-lg relative overflow-hidden group
+                                            ${nickname.trim() ? 'bg-[#c24a43] hover:bg-[#a63d37] transform hover:-translate-y-1' : 'bg-[#d6ccc2] cursor-not-allowed'}`}
+                                        style={{
+                                            boxShadow: nickname.trim() ? '0 4px 15px rgba(194, 74, 67, 0.3)' : 'none',
+                                            borderRadius: '255px 15px 225px 15px / 15px 225px 15px 255px' 
+                                        }}
+                                    >
+                                        <span className="relative z-10">开启祝福</span>
+                                        {nickname.trim() && <div className="absolute inset-0 bg-white/20 transform -translate-x-full group-hover:translate-x-0 transition-transform duration-500 skew-x-12"></div>}
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* LOADING STAGE */}
+                            {step === 'loading' && (
+                                <div className="flex flex-col items-center justify-center h-full min-h-[400px]">
+                                    <div className="relative">
+                                        <div className="absolute inset-0 bg-[#c24a43] rounded-full opacity-20 animate-ping"></div>
+                                        <div className="w-16 h-16 border-4 border-[#c24a43] border-t-transparent rounded-full animate-spin opacity-80"></div>
+                                    </div>
+                                    <p className="mt-8 text-[#8b4513] tracking-widest animate-pulse font-serif">
+                                        正在为您提取草本能量...
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* RESULT STAGE */}
+                            {step === 'result' && (
+                                <div className={`w-full transform transition-all duration-1000 ${showResult ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+                                    <div className="bg-white/60 backdrop-blur-sm p-8 rounded-sm shadow-xl border border-[#e8dfd6] relative overflow-hidden wet-edge mx-auto max-w-[320px] md:max-w-full">
+                                        
+                                        {/* Card Texture Overlay */}
+                                        <div className="absolute inset-0 pointer-events-none opacity-50" 
+                                             style={{backgroundImage: `url("data:image/svg+xml,%3Csvg width='4' height='4' viewBox='0 0 4 4' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 3h1v1H1V3zm2-2h1v1H3V1z' fill='%23d6ccc2' fill-opacity='0.4' fill-rule='evenodd'/%3E%3C/svg%3E")`}}>
+                                        </div>
+
+                                        {/* Content */}
+                                        <div className="relative z-10 flex flex-col items-center text-center">
+                                            {/* Stamp Date */}
+                                            <div className="absolute top-0 right-0 border border-[#c24a43] text-[#c24a43] text-xs px-2 py-1 transform rotate-6 opacity-70 font-mono">
+                                                2026 丙午年
+                                            </div>
+
+                                            <div className="mb-6 opacity-80">
+                                                <BottleIcon className="w-12 h-24" />
+                                            </div>
+
+                                            <h2 className="text-xl text-[#5a4638] mb-6 font-calligraphy">
+                                                致 {nickname}
+                                            </h2>
+
+                                            <div className="w-full h-px bg-gradient-to-r from-transparent via-[#8b4513] to-transparent opacity-20 mb-8"></div>
+
+                                            <p className="text-lg leading-relaxed text-[#2c2c2c] font-serif mb-10 ink-text">
+                                                “{selectedBlessing}”
+                                            </p>
+
+                                            <div className="flex flex-col items-center">
+                                                <div className="w-8 h-8 bg-[#c24a43] rounded-full flex items-center justify-center text-white text-xs font-bold mb-2 shadow-sm"
+                                                     style={{ borderRadius: '40% 60% 70% 30% / 40% 50% 60% 50%' }}>
+                                                    望
+                                                </div>
+                                                <span className="text-xs text-[#888] tracking-widest uppercase">Hao Wang Shui</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Decorative Corner Blobs on Card */}
+                                        <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#a4c639] rounded-full mix-blend-multiply filter blur-2xl opacity-20 pointer-events-none"></div>
+                                        <div className="absolute top-0 right-0 w-24 h-24 bg-[#c24a43] rounded-full mix-blend-multiply filter blur-xl opacity-10 pointer-events-none"></div>
+                                    </div>
+
+                                    <div className="mt-8 flex justify-center space-x-4 opacity-0 animate-[fadeIn_1s_ease-out_1s_forwards]">
+                                        <button 
+                                            onClick={reset}
+                                            className="text-[#8b4513] text-sm underline decoration-1 underline-offset-4 hover:text-[#c24a43] transition-colors"
+                                        >
+                                            再抽取一次
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                    {/* --- Content Container --- */}
-                    <div className={`relative z-10 w-full max-w-md transition-all duration-1000 ${step === 'result' ? 'h-auto' : 'h-auto'}`}>
-                        
-                        {/* INPUT STAGE */}
-                        {step === 'input' && (
-                            <div className="flex flex-col items-center text-center space-y-8 animate-[fadeIn_1s_ease-out]">
-                                <div className="mb-4">
-                                    <BottleIcon className="w-24 h-48 drop-shadow-md" />
-                                </div>
-                                
-                                <h1 className="text-3xl font-bold text-[#5a4638] tracking-widest font-calligraphy">
-                                    新年 · 送望
-                                </h1>
-                                <p className="text-[#888] text-sm italic serif px-8">
-                                    "给予希望，美好发生"
-                                </p>
-
-                                <div className="w-full px-8 pt-8">
-                                    <input 
-                                        type="text" 
-                                        value={nickname}
-                                        onChange={(e) => setNickname(e.target.value)}
-                                        placeholder="请输入您的昵称"
-                                        className="hand-input w-full text-center text-xl text-[#5a4638] py-2 bg-transparent placeholder-[#b0aba5]"
-                                    />
-                                </div>
-
+                    {/* QR CODE MODAL */}
+                    {showQR && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                            {/* Backdrop */}
+                            <div className="absolute inset-0 bg-[#5a4638]/30 backdrop-blur-sm" onClick={() => setShowQR(false)}></div>
+                            
+                            {/* Modal Content */}
+                            <div className="relative bg-[#fcfaf7] p-8 rounded-lg shadow-2xl max-w-sm w-full border border-[#d6ccc2] wet-edge animate-[modal-enter_0.3s_ease-out]">
                                 <button 
-                                    onClick={handleDraw}
-                                    disabled={!nickname.trim()}
-                                    className={`mt-12 px-8 py-3 rounded-full text-[#fcfaf7] tracking-widest transition-all duration-500 shadow-lg
-                                        ${nickname.trim() ? 'bg-[#c24a43] hover:bg-[#a63d37] hover:shadow-xl transform hover:-translate-y-1' : 'bg-[#d6ccc2] cursor-not-allowed'}`}
-                                    style={{
-                                        boxShadow: nickname.trim() ? '0 4px 15px rgba(194, 74, 67, 0.3)' : 'none',
-                                        // Irregular shape for handmade feel
-                                        borderRadius: '255px 15px 225px 15px / 15px 225px 15px 255px' 
-                                    }}
+                                    onClick={() => setShowQR(false)}
+                                    className="absolute top-2 right-4 text-[#8b4513] text-2xl hover:text-[#c24a43]"
                                 >
-                                    开启祝福
+                                    &times;
                                 </button>
-                            </div>
-                        )}
-
-                        {/* LOADING STAGE */}
-                        {step === 'loading' && (
-                            <div className="flex flex-col items-center justify-center h-64">
-                                <div className="relative">
-                                    <div className="absolute inset-0 bg-[#c24a43] rounded-full opacity-20 animate-ping"></div>
-                                    <div className="w-16 h-16 border-4 border-[#c24a43] border-t-transparent rounded-full animate-spin opacity-80"></div>
-                                </div>
-                                <p className="mt-8 text-[#8b4513] tracking-widest animate-pulse font-serif">
-                                    正在为您提取草本能量...
-                                </p>
-                            </div>
-                        )}
-
-                        {/* RESULT STAGE */}
-                        {step === 'result' && (
-                            <div className={`transform transition-all duration-1000 ${showResult ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
-                                <div className="bg-white/60 backdrop-blur-sm p-8 rounded-sm shadow-xl border border-[#e8dfd6] relative overflow-hidden wet-edge">
-                                    
-                                    {/* Card Texture Overlay */}
-                                    <div className="absolute inset-0 pointer-events-none opacity-50" 
-                                         style={{backgroundImage: `url("data:image/svg+xml,%3Csvg width='4' height='4' viewBox='0 0 4 4' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 3h1v1H1V3zm2-2h1v1H3V1z' fill='%23d6ccc2' fill-opacity='0.4' fill-rule='evenodd'/%3E%3C/svg%3E")`}}>
-                                    </div>
-
-                                    {/* Content */}
-                                    <div className="relative z-10 flex flex-col items-center text-center">
-                                        {/* Stamp Date */}
-                                        <div className="absolute top-0 right-0 border border-[#c24a43] text-[#c24a43] text-xs px-2 py-1 transform rotate-6 opacity-70 font-mono">
-                                            2026 丙午年
-                                        </div>
-
-                                        <div className="mb-6 opacity-80">
-                                            <BottleIcon className="w-16 h-32" />
-                                        </div>
-
-                                        <h2 className="text-xl text-[#5a4638] mb-6 font-calligraphy">
-                                            致 {nickname}
-                                        </h2>
-
-                                        <div className="w-full h-px bg-gradient-to-r from-transparent via-[#8b4513] to-transparent opacity-20 mb-8"></div>
-
-                                        <p className="text-lg md:text-xl leading-relaxed text-[#2c2c2c] font-serif mb-10 ink-text">
-                                            “{selectedBlessing}”
-                                        </p>
-
-                                        <div className="flex flex-col items-center">
-                                            <div className="w-8 h-8 bg-[#c24a43] rounded-full flex items-center justify-center text-white text-xs font-bold mb-2 shadow-sm"
-                                                 style={{ borderRadius: '40% 60% 70% 30% / 40% 50% 60% 50%' }}>
-                                                望
-                                            </div>
-                                            <span className="text-xs text-[#888] tracking-widest uppercase">Hao Wang Shui</span>
-                                        </div>
-                                    </div>
-
-                                    {/* Decorative Corner Blobs on Card */}
-                                    <div className="absolute bottom-0 left-0 w-32 h-32 bg-[#a4c639] rounded-full mix-blend-multiply filter blur-2xl opacity-20 pointer-events-none"></div>
-                                    <div className="absolute top-0 right-0 w-24 h-24 bg-[#c24a43] rounded-full mix-blend-multiply filter blur-xl opacity-10 pointer-events-none"></div>
-                                </div>
-
-                                <div className="mt-8 flex justify-center space-x-4 opacity-0 animate-[fadeIn_1s_ease-out_1s_forwards]">
-                                    <button 
-                                        onClick={reset}
-                                        className="text-[#8b4513] text-sm underline decoration-1 underline-offset-4 hover:text-[#c24a43] transition-colors"
-                                    >
-                                        再抽取一次
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* QR CODE MODAL */}
-                        {showQR && (
-                            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                                {/* Backdrop */}
-                                <div className="absolute inset-0 bg-[#5a4638]/30 backdrop-blur-sm" onClick={() => setShowQR(false)}></div>
                                 
-                                {/* Modal Content */}
-                                <div className="relative bg-[#fcfaf7] p-8 rounded-lg shadow-2xl max-w-sm w-full border border-[#d6ccc2] wet-edge animate-[modal-enter_0.3s_ease-out]">
-                                    <button 
-                                        onClick={() => setShowQR(false)}
-                                        className="absolute top-2 right-4 text-[#8b4513] text-2xl hover:text-[#c24a43]"
-                                    >
-                                        &times;
-                                    </button>
+                                <div className="flex flex-col items-center text-center">
+                                    <h3 className="text-xl text-[#5a4638] font-bold mb-4 font-calligraphy">分享祝福</h3>
                                     
-                                    <div className="flex flex-col items-center text-center">
-                                        <h3 className="text-xl text-[#5a4638] font-bold mb-4 font-calligraphy">分享祝福</h3>
-                                        <div className="bg-white p-2 border border-[#e8dfd6] mb-4">
-                                            {/* Using API to generate QR code for current URL */}
+                                    {/* Warning for local file */}
+                                    {isLocalFile && (
+                                        <div className="bg-yellow-50 text-yellow-800 text-xs p-2 mb-4 rounded border border-yellow-200">
+                                            注意：当前为本地预览模式，生成的二维码无法被他人访问。请发布到网络后使用。
+                                        </div>
+                                    )}
+
+                                    <div className="bg-white p-2 border border-[#e8dfd6] mb-4 min-w-[200px] min-h-[200px] flex items-center justify-center">
+                                        {/* Using Local Generation */}
+                                        {qrImage ? (
                                             <img 
-                                                src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&color=5a4638&bgcolor=fcfaf7&data=${encodeURIComponent(window.location.href)}`}
+                                                src={qrImage}
                                                 alt="QR Code"
                                                 className="w-48 h-48"
                                             />
-                                        </div>
-                                        <p className="text-sm text-[#888] serif">
-                                            扫描二维码，将这份“望”送给更多人
-                                        </p>
-                                        <p className="text-xs text-[#c24a43] mt-2 opacity-70">
-                                            *请确保此页面已发布到网络
-                                        </p>
+                                        ) : (
+                                            <div className="w-12 h-12 border-4 border-[#c24a43] border-t-transparent rounded-full animate-spin"></div>
+                                        )}
                                     </div>
+                                    <p className="text-sm text-[#888] serif">
+                                        扫描二维码，将这份“望”送给更多人
+                                    </p>
+                                    <p className="text-xs text-[#c24a43] mt-2 opacity-70">
+                                        *长按图片可保存分享
+                                    </p>
                                 </div>
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                    </div>
-
-                    <div className="fixed bottom-4 text-[10px] text-[#a09a94] font-serif z-20">
+                    <div className="fixed bottom-4 text-[10px] text-[#a09a94] font-serif z-20 md:text-white/50 md:mix-blend-difference">
                         Designed for Hao Wang Shui
                     </div>
                 </div>
